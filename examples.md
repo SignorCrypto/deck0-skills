@@ -117,10 +117,11 @@ GET /api/agents/v1/collections/0x1a2b3c4d5e6f7890abcdef1234567890abcdef12/price
 
 ### Step 4: Mint packs on-chain
 
-Using the data from the price response, call `mintPacks` on the album contract:
+Using the data from the price response, call `mintPacks` on the album contract. **`packPrice` must come from the collection response (`GET /collections/{address}`), not from `priceInCents` in the price response** (which is the token price per unit, e.g. USD per APE). When using fallback signing, ensure `DECK0_PRIVATE_KEY` is set before running.
 
 ```bash
-# packPrice = 1000 (from collection details, in cents = $10.00)
+set -euo pipefail
+# packPrice = 1000 (from collection details — pack price in USD cents, e.g. $10.00)
 # quantity = 2
 # priceInNative = 813008130081300813 (from price response)
 # value = (1000 * 813008130081300813 * 2) / 100 = 16260162601626016260 wei ≈ 16.26 APE
@@ -130,7 +131,7 @@ cast send "0x1a2b3c4d5e6f7890abcdef1234567890abcdef12" \
   "mintPacks(address,uint256,uint256,uint256,bytes,bytes32)" \
   "$WALLET" 2 813008130081300813 1706200120 "0x1234567890abcdef..." "0xabcdef1234567890..." \
   --value "$VALUE" \
-  --private-key "$PRIVATE_KEY" \
+  --private-key "$DECK0_PRIVATE_KEY" \
   --rpc-url "https://rpc.apechain.com"
 ```
 
@@ -165,13 +166,14 @@ GET /api/agents/v1/me/albums/0x1a2b3c4d5e6f7890abcdef1234567890abcdef12
 
 ### Step 2: Open packs on-chain
 
-Call `openPacks` with the pack token IDs (obtained from `PackMinted` events during purchase):
+Call `openPacks` with the pack token IDs (obtained from `PackMinted` events during purchase). When using fallback signing, ensure `DECK0_PRIVATE_KEY` is set.
 
 ```bash
+set -euo pipefail
 cast send "0x1a2b3c4d5e6f7890abcdef1234567890abcdef12" \
   "openPacks(uint256[])" \
   "[42,43,44]" \
-  --private-key "$PRIVATE_KEY" \
+  --private-key "$DECK0_PRIVATE_KEY" \
   --rpc-url "https://rpc.apechain.com"
 ```
 
@@ -182,18 +184,22 @@ Each pack reveals 5 cards. Save the transaction hash from the receipt for the ne
 After the `openPacks` transaction confirms, poll the recap endpoint to get card details and badges. The transaction takes 15-30 seconds to be indexed.
 
 ```bash
-TX_HASH="0x..."  # from openPacks transaction
+set -euo pipefail
+TX_HASH="0x..."  # from openPacks transaction (must be from a trusted source, e.g. your own receipt)
 CHAIN_ID=33139   # Apechain Mainnet
 
-# Poll every 5 seconds, up to 6 retries (~30 seconds)
+# Validate tx hash format before interpolating into the request (avoids injection if TX_HASH were ever user-supplied)
+[[ "$TX_HASH" =~ ^0x[a-fA-F0-9]{64}$ ]] || { echo "Invalid tx hash format"; exit 1; }
+
+# Poll every 5 seconds, up to 6 retries (~30 seconds). Uses make_authenticated_request_capture from auth.md.
 for attempt in $(seq 1 6); do
-  HTTP_CODE=$(make_authenticated_request \
+  HTTP_CODE=$(make_authenticated_request_capture \
     "/api/agents/v1/me/pack-opening/${TX_HASH}" \
     "chainId=${CHAIN_ID}" \
-    -w "%{http_code}" -o /tmp/recap.json)
+    /tmp/recap.json)
 
   if [ "$HTTP_CODE" = "200" ]; then
-    cat /tmp/recap.json | jq .
+    jq . /tmp/recap.json
     break
   fi
 

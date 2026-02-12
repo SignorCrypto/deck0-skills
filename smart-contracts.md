@@ -11,10 +11,12 @@ Buying and opening packs in DECK-0 are on-chain operations. This guide covers th
 
 ## Supported Networks
 
-| Network | Chain ID | Currency | Decimals | Block Explorer |
-|---------|----------|----------|----------|----------------|
+| Network | Chain ID | Currency | Display decimals | Block Explorer |
+|---------|----------|----------|------------------|----------------|
 | Apechain Mainnet | 33139 | APE | 2 | https://apescan.io |
 | Base | 8453 | ETH | 4 | https://basescan.org |
+
+Native tokens use 18 decimals on-chain; the table above is for display precision only.
 
 ## Buying Packs
 
@@ -159,10 +161,12 @@ The caller must own all specified pack IDs. Each pack contains 5 cards.
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Fallback signing: require DECK0_PRIVATE_KEY so unset env fails fast
+: "${DECK0_PRIVATE_KEY:?DECK0_PRIVATE_KEY must be set for fallback signing}"
+
 # Requires: auth helpers from auth.md (sign_request, make_authenticated_request, etc.)
 
-PRIVATE_KEY="$DECK0_PRIVATE_KEY"
-WALLET=$(cast wallet address --private-key "$PRIVATE_KEY" | tr '[:upper:]' '[:lower:]')
+WALLET=$(cast wallet address --private-key "$DECK0_PRIVATE_KEY" | tr '[:upper:]' '[:lower:]')
 BASE_URL="https://app.deck-0.com"
 
 # --- Buy Packs ---
@@ -193,7 +197,7 @@ buy_packs() {
     "mintPacks(address,uint256,uint256,uint256,bytes,bytes32)" \
     "$WALLET" "$quantity" "$price_in_native" "$expiration" "$sig" "$nonce" \
     --value "$value" \
-    --private-key "$PRIVATE_KEY" \
+    --private-key "$DECK0_PRIVATE_KEY" \
     --rpc-url "$rpc_url" \
     --json | jq -r '.transactionHash')"
 
@@ -220,7 +224,7 @@ open_packs() {
   tx_hash="$(cast send "$contract" \
     "openPacks(uint256[])" \
     "$pack_ids" \
-    --private-key "$PRIVATE_KEY" \
+    --private-key "$DECK0_PRIVATE_KEY" \
     --rpc-url "$rpc_url" \
     --json | jq -r '.transactionHash')"
 

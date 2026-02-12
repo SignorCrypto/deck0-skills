@@ -57,6 +57,11 @@ Use this signer priority:
 
 The canonical payload format and `X-Agent-*` headers stay exactly the same regardless of signer source.
 
+When using fallback mode, optional env vars are:
+
+- `DECK0_PRIVATE_KEY` (required for fallback signing)
+- `DECK0_CHAIN_ID` (optional, defaults to `8453`) — used for API auth signature verification only; the chain for contract calls (buy/open) comes from the collection or price response and your RPC URL
+
 ## Signing Flow (Step by Step)
 
 1. **Generate a timestamp** — current time in Unix milliseconds
@@ -77,9 +82,8 @@ Use this shell script only when no runtime agent wallet signer or Base wallet si
 set -euo pipefail
 
 BASE_URL="https://app.deck-0.com"
-PRIVATE_KEY="$DECK0_PRIVATE_KEY"
-AGENT_CHAIN_ID="${AGENT_CHAIN_ID:-8453}"
-WALLET=$(cast wallet address --private-key "$PRIVATE_KEY" | tr '[:upper:]' '[:lower:]')
+DECK0_CHAIN_ID="${DECK0_CHAIN_ID:-8453}"
+WALLET=$(cast wallet address --private-key "$DECK0_PRIVATE_KEY" | tr '[:upper:]' '[:lower:]')
 
 # --- Helper: canonicalize query string ---
 # Sorts query params alphabetically by key, then by value.
@@ -116,16 +120,16 @@ query:${query}
 body_sha256:${body_sha256}
 timestamp:${timestamp}
 nonce:${nonce}
-chain_id:${AGENT_CHAIN_ID}
+chain_id:${DECK0_CHAIN_ID}
 wallet:${WALLET}"
 
   # Sign with EIP-191 (cast wallet sign uses personal_sign)
   local signature
-  signature="$(cast wallet sign --private-key "$PRIVATE_KEY" "$payload")"
+  signature="$(cast wallet sign --private-key "$DECK0_PRIVATE_KEY" "$payload")"
 
   # Export for use in curl
   HEADER_WALLET="$WALLET"
-  HEADER_CHAIN_ID="$AGENT_CHAIN_ID"
+  HEADER_CHAIN_ID="$DECK0_CHAIN_ID"
   HEADER_TIMESTAMP="$timestamp"
   HEADER_NONCE="$nonce"
   HEADER_SIGNATURE="$signature"
@@ -145,6 +149,30 @@ make_authenticated_request() {
   if [ -n "$query" ]; then url="${url}?${query}"; fi
 
   curl -s "$url" \
+    -H "X-Agent-Wallet-Address: $HEADER_WALLET" \
+    -H "X-Agent-Chain-Id: $HEADER_CHAIN_ID" \
+    -H "X-Agent-Timestamp: $HEADER_TIMESTAMP" \
+    -H "X-Agent-Nonce: $HEADER_NONCE" \
+    -H "X-Agent-Signature: $HEADER_SIGNATURE"
+}
+
+# --- Helper: authenticated GET with status code and body file ---
+# Usage: HTTP_CODE=$(make_authenticated_request_capture PATH QUERY OUTFILE)
+# Prints HTTP status code to stdout; response body is written to OUTFILE.
+make_authenticated_request_capture() {
+  local path="$1"
+  local query="${2:-}"
+  local outfile="$3"
+
+  local canonical_query
+  canonical_query="$(canonicalize_query_string "$query")"
+
+  sign_request "GET" "$path" "$canonical_query"
+
+  local url="${BASE_URL}${path}"
+  if [ -n "$query" ]; then url="${url}?${query}"; fi
+
+  curl -s -w "%{http_code}" -o "$outfile" "$url" \
     -H "X-Agent-Wallet-Address: $HEADER_WALLET" \
     -H "X-Agent-Chain-Id: $HEADER_CHAIN_ID" \
     -H "X-Agent-Timestamp: $HEADER_TIMESTAMP" \

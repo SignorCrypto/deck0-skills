@@ -53,6 +53,14 @@ For the fallback, set your private key:
 export DECK0_PRIVATE_KEY="0x..."
 ```
 
+Optional fallback chain override:
+
+```bash
+export DECK0_CHAIN_ID=8453
+```
+
+Prefer runtime-provided wallets when available. Use `DECK0_PRIVATE_KEY` only with explicit user approval, and never print or log it.
+
 ## Skill Structure
 
 ```

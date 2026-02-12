@@ -48,6 +48,12 @@ The `details` field is optional and provides additional context (e.g., validatio
 | `AGENT_AUTH_INVALID_SIGNATURE` | Invalid signature format / Signature does not match wallet | `X-Agent-Signature` is malformed or the recovered address doesn't match the wallet header |
 | `AGENT_AUTH_REPLAY_DETECTED` | Replay detected | The nonce has already been used within the 5-minute TTL window |
 
+### Forbidden Errors (403)
+
+| Code | Message | Cause |
+|------|---------|-------|
+| `AGENT_FORBIDDEN` | User address does not match pack opener | Pack-opening recap (`GET /api/agents/v1/me/pack-opening/{hash}`) is only for the wallet that opened the packs; see [endpoints.md](./endpoints.md) for the pack-opening endpoint. |
+
 ### Rate Limiting Errors (429)
 
 | Code | Message | Cause |
@@ -59,7 +65,7 @@ The `details` field is optional and provides additional context (e.g., validatio
 
 | Code | Message | Cause |
 |------|---------|-------|
-| `AGENT_VALIDATION_ERROR` | Invalid album address | Path parameter is not a valid EVM address |
+| `AGENT_VALIDATION_ERROR` | Invalid album address | Path parameter (collection contract address) is not a valid EVM address |
 | `AGENT_VALIDATION_ERROR` | Invalid JSON body | POST body could not be parsed as JSON |
 | `AGENT_VALIDATION_ERROR` | Validation failed | Request body failed Zod schema validation (see `details.errors`) |
 | `AGENT_VALIDATION_ERROR` | Application already submitted and pending review | Publisher application is already pending |
@@ -69,9 +75,11 @@ The `details` field is optional and provides additional context (e.g., validatio
 
 | Code | Message | Cause |
 |------|---------|-------|
-| `AGENT_NOT_FOUND` | Collection not found | No album exists at the given contract address |
-| `AGENT_NOT_FOUND` | Album not found for this wallet and collection address | Wallet has no data for the specified album |
+| `AGENT_NOT_FOUND` | Collection not found | No collection exists at the given contract address |
+| `AGENT_NOT_FOUND` | Album not found for this wallet and collection address | Wallet has no data for the specified collection |
 | `AGENT_NOT_FOUND` | No application found | No publisher application exists for this wallet |
+
+For `GET /api/agents/v1/me/pack-opening/{hash}`: `AGENT_NOT_FOUND` can indicate transaction not found, collection not found, packs not found, cards not found, or wallet not registered. See [endpoints.md](./endpoints.md) for the full list of 404 cases for that endpoint.
 
 ### Service Errors (503)
 
@@ -115,6 +123,8 @@ Wallet-level limits are checked first. If both are exceeded, the wallet scope ta
 | `X-RateLimit-Scope` | Which limit was hit: `wallet` or `ip` | `wallet` |
 
 ### Handling Rate Limits
+
+The `X-Agent-*` headers in the example below should be produced via the same auth flow as in [auth.md](./auth.md) (e.g. `sign_request` and the authenticated request helpers).
 
 ```bash
 HTTP_CODE=$(curl -s -o /tmp/response.json -w "%{http_code}" "$url" \
@@ -164,9 +174,9 @@ Common causes:
 
 Each nonce can only be used once within 5 minutes. Generate a fresh random nonce for every request. Do not retry failed requests with the same nonce.
 
-### "Invalid album address"
+### "Invalid album address" / invalid collection address
 
-Contract addresses must be valid 42-character hex strings starting with `0x`. The API normalizes addresses to lowercase.
+Collection (album) contract addresses must be valid 42-character hex strings starting with `0x`. The API normalizes addresses to lowercase.
 
 ### Smart Contract Transaction Errors
 

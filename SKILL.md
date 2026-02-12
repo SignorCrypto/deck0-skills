@@ -2,7 +2,7 @@
 name: DECK-0
 description: Interact with DECK-0 digital collectibles platform to browse collections, buy card packs, open packs, view leaderboards, and apply as a publisher. Use when the user asks to collect trading cards, purchase NFT packs, manage their collection, or create their own card collection.
 homepage: https://app.deck-0.com
-metadata: {"openclaw":{"emoji":"🃏","requires":{"bins":[],"env":[]},"primaryEnv":"DECK0_PRIVATE_KEY"}}
+metadata: {"openclaw":{"emoji":"🃏","requires":{"bins":["cast","curl","jq","shasum"],"env":["DECK0_PRIVATE_KEY"]},"primaryEnv":"DECK0_PRIVATE_KEY"}}
 ---
 
 # DECK-0 Agents API
@@ -36,15 +36,30 @@ Fallback setup for step 3:
 export DECK0_PRIVATE_KEY="0x..."
 ```
 
-Install [Foundry](https://book.getfoundry.sh/getting-started/installation):
+Optional fallback chain override (used only for API auth signature verification; contract operations use the chain from the collection/price response and your RPC selection):
 
 ```bash
-curl -L https://foundry.paradigm.xyz | bash && foundryup
+export DECK0_CHAIN_ID=8453
+```
+
+Install [Foundry](https://book.getfoundry.sh/getting-started/installation) using a reviewed method (for example Homebrew), then verify `cast` is available:
+
+```bash
+brew install foundry
+cast --version
 ```
 
 Also uses: `curl`, `jq`, `shasum` (standard on macOS/Linux).
 
+**Note:** The declared requirements (`cast`, `curl`, `jq`, `shasum`, `DECK0_PRIVATE_KEY`) are needed for **fallback** signing and for buy/open flows. Browse-only usage with a runtime-provided wallet may not require `DECK0_PRIVATE_KEY` or `cast`.
+
 The wallet needs native tokens (APE on Apechain, ETH on Base) to buy packs.
+
+## Security Notes
+
+- Prefer runtime-provided wallets whenever available.
+- `DECK0_PRIVATE_KEY` is highly sensitive. Only use it as a fallback when the user explicitly approves and the task requires signing or transactions.
+- Never print, log, or echo private key values.
 
 ## Quick Reference
 
